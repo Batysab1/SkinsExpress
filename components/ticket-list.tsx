@@ -8,48 +8,51 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MessageCircle } from "lucide-react"
 import { getCurrentUser } from "@/lib/auth"
+import {
+  getTickets,
+  getMessagesByTicketId,
+  createMessage,
+  subscribeToMessages,
+  type Ticket,
+  type Message,
+} from "@/lib/db"
+import { useToast } from "@/hooks/use-toast"
 
-type Ticket = {
-  id: number
-  title: string
-  date: string
-  status: "pending" | "in-progress" | "completed"
-  type: string
-  message?: string
-  skin?: string
-  steamId?: string // Add steamId to link tickets to users
-  steamName?: string // Add steamName for display purposes
-}
-
-// Modificar la función TicketList para eliminar los tickets de ejemplo
 export default function TicketList() {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [showChat, setShowChat] = useState<number | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
-  // Load tickets from localStorage on component mount
+  // Cargar tickets desde Supabase
   useEffect(() => {
-    // Get current user
-    const user = getCurrentUser()
-    setCurrentUser(user)
+    async function loadTickets() {
+      try {
+        // Get current user
+        const user = getCurrentUser()
+        setCurrentUser(user)
 
-    const storedTickets = localStorage.getItem("tickets")
-    if (storedTickets) {
-      const allTickets = JSON.parse(storedTickets)
-
-      // If user is logged in, filter tickets to show only their tickets
-      if (user && user.steamid) {
-        const userTickets = allTickets.filter((ticket: Ticket) => !ticket.steamId || ticket.steamId === user.steamid)
-        setTickets(userTickets)
-      } else {
-        setTickets(allTickets)
+        if (user && user.steamid) {
+          const userTickets = await getTickets(user.steamid)
+          setTickets(userTickets)
+        } else {
+          setTickets([])
+        }
+      } catch (error) {
+        console.error("Error loading tickets:", error)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los tickets. Por favor, intenta de nuevo.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
       }
-    } else {
-      // No sample tickets, just initialize with empty array
-      setTickets([])
-      localStorage.setItem("tickets", JSON.stringify([]))
     }
-  }, [])
+
+    loadTickets()
+  }, [toast])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -77,6 +80,14 @@ export default function TicketList() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {tickets.length === 0 ? (
@@ -97,9 +108,9 @@ export default function TicketList() {
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-400">
                   <span>ID: #{ticket.id}</span>
-                  <span>Fecha: {ticket.date}</span>
+                  <span>Fecha: {new Date(ticket.created_at).toLocaleDateString()}</span>
                   <span>Tipo: {ticket.type}</span>
-                  {ticket.steamName && <span>Usuario: {ticket.steamName}</span>}
+                  {ticket.steam_name && <span>Usuario: {ticket.steam_name}</span>}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -125,60 +136,115 @@ export default function TicketList() {
   )
 }
 
-// Modificar la función LiveChat para eliminar los mensajes pre-hechos
 function LiveChat({ ticketId }: { ticketId: number }) {
-  const [messages, setMessages] = useState<{ id: number; sender: string; text: string; time: string }[]>([])
+  const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  // Cargar mensajes y suscribirse a nuevos mensajes
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null
+
+    async function loadMessages() {
+      try {
+        setLoading(true)
+        const ticketMessages = await getMessagesByTicketId(ticketId)
+        setMessages(ticketMessages)
+
+        // Suscribirse a nuevos mensajes
+        unsubscribe = subscribeToMessages(ticketId, (newMessage) => {
+          setMessages((prevMessages) => [...prevMessages, newMessage])
+        })
+      } catch (error) {
+        console.error("Error loading messages:", error)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los mensajes. Por favor, intenta de nuevo.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadMessages()
+
+    // Limpiar suscripción al desmontar
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
+  }, [ticketId, toast])
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMessage.trim()) return
 
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-
-    setMessages([
-      ...messages,
-      {
-        id: messages.length + 1,
+    try {
+      // Enviar mensaje del usuario
+      await createMessage({
+        ticket_id: ticketId,
         sender: "user",
-        text: newMessage,
-        time,
-      },
-    ])
+        content: newMessage,
+      })
 
-    setNewMessage("")
+      // Limpiar campo de mensaje
+      setNewMessage("")
 
-    // Simulate trader response - solo un mensaje automático
-    setTimeout(() => {
-      const traderResponse = {
-        id: messages.length + 2,
-        sender: "trader",
-        text: "Gracias por tu mensaje. Un trader te responderá en breve.",
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      }
+      // Enviar respuesta automática después de un segundo
+      setTimeout(async () => {
+        await createMessage({
+          ticket_id: ticketId,
+          sender: "trader",
+          content: "Gracias por tu mensaje. Un trader te responderá en breve.",
+        })
+      }, 1000)
+    } catch (error) {
+      console.error("Error sending message:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo enviar el mensaje. Por favor, intenta de nuevo.",
+        variant: "destructive",
+      })
+    }
+  }
 
-      setMessages((prev) => [...prev, traderResponse])
-    }, 1000)
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col h-80">
       <div className="flex-1 overflow-y-auto mb-4 space-y-3 p-3 bg-gray-900/50 rounded-lg">
-        {messages.map((message) => (
-          <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                message.sender === "user" ? "bg-blue-600 text-white" : "bg-gray-700 text-white"
-              }`}
-            >
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-medium">{message.sender === "user" ? "Tú" : "Trader"}</span>
-                <span className="text-xs opacity-70 ml-2">{message.time}</span>
-              </div>
-              <p>{message.text}</p>
-            </div>
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-400">No hay mensajes. Envía el primero para iniciar la conversación.</p>
           </div>
-        ))}
+        ) : (
+          messages.map((message) => (
+            <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                  message.sender === "user" ? "bg-blue-600 text-white" : "bg-gray-700 text-white"
+                }`}
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium">{message.sender === "user" ? "Tú" : "Trader"}</span>
+                  <span className="text-xs opacity-70 ml-2">
+                    {new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                <p>{message.content}</p>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <form onSubmit={handleSendMessage} className="flex gap-2">

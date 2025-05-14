@@ -13,18 +13,16 @@ import { Badge } from "@/components/ui/badge"
 import { isTrader } from "@/lib/auth"
 import { ArrowLeft, Search, MessageCircle, CheckCircle, Clock, User } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-
-type Ticket = {
-  id: number
-  title: string
-  date: string
-  status: "pending" | "in-progress" | "completed"
-  type: string
-  message?: string
-  skin?: string
-  steamId?: string
-  steamName?: string
-}
+import {
+  getTickets,
+  updateTicketStatus,
+  getMessagesByTicketId,
+  createMessage,
+  subscribeToMessages,
+  type Ticket,
+  type Message,
+} from "@/lib/db"
+import { useToast } from "@/hooks/use-toast"
 
 export default function AdminDashboard() {
   const [tickets, setTickets] = useState<Ticket[]>([])
@@ -32,27 +30,41 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const { toast } = useToast()
 
   useEffect(() => {
-    // Check if user is a trader/admin
-    const traderStatus = isTrader()
-    setIsAdmin(traderStatus)
+    async function loadData() {
+      try {
+        // Check if user is a trader/admin
+        const traderStatus = isTrader()
+        setIsAdmin(traderStatus)
 
-    // If not a trader, redirect to home page
-    if (!traderStatus) {
-      router.push("/")
-      return
+        // If not a trader, redirect to home page
+        if (!traderStatus) {
+          router.push("/")
+          return
+        }
+
+        // Load tickets from Supabase
+        const allTickets = await getTickets()
+        setTickets(allTickets)
+        setFilteredTickets(allTickets)
+      } catch (error) {
+        console.error("Error loading tickets:", error)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los tickets. Por favor, intenta de nuevo.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
     }
 
-    // Load tickets from localStorage
-    const storedTickets = localStorage.getItem("tickets")
-    if (storedTickets) {
-      const parsedTickets = JSON.parse(storedTickets)
-      setTickets(parsedTickets)
-      setFilteredTickets(parsedTickets)
-    }
-  }, [router])
+    loadData()
+  }, [router, toast])
 
   // Filter tickets based on search term
   useEffect(() => {
@@ -66,23 +78,37 @@ export default function AdminDashboard() {
         ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         ticket.id.toString().includes(searchTerm) ||
         ticket.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (ticket.steamName && ticket.steamName.toLowerCase().includes(searchTerm.toLowerCase())),
+        (ticket.steam_name && ticket.steam_name.toLowerCase().includes(searchTerm.toLowerCase())),
     )
     setFilteredTickets(filtered)
   }, [searchTerm, tickets])
 
-  const handleStatusChange = (ticketId: number, newStatus: "pending" | "in-progress" | "completed") => {
-    const updatedTickets = tickets.map((ticket) => (ticket.id === ticketId ? { ...ticket, status: newStatus } : ticket))
+  const handleStatusChange = async (ticketId: number, newStatus: "pending" | "in-progress" | "completed") => {
+    try {
+      // Update ticket status in Supabase
+      const updatedTicket = await updateTicketStatus(ticketId, newStatus)
 
-    setTickets(updatedTickets)
-    setFilteredTickets(updatedTickets)
+      // Update local state
+      setTickets(tickets.map((ticket) => (ticket.id === ticketId ? updatedTicket : ticket)))
+      setFilteredTickets(filteredTickets.map((ticket) => (ticket.id === ticketId ? updatedTicket : ticket)))
 
-    if (selectedTicket && selectedTicket.id === ticketId) {
-      setSelectedTicket({ ...selectedTicket, status: newStatus })
+      if (selectedTicket && selectedTicket.id === ticketId) {
+        setSelectedTicket(updatedTicket)
+      }
+
+      toast({
+        title: "Estado actualizado",
+        description: `El ticket ha sido marcado como ${getStatusText(newStatus)}.`,
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Error updating ticket status:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estado del ticket. Por favor, intenta de nuevo.",
+        variant: "destructive",
+      })
     }
-
-    // Update localStorage
-    localStorage.setItem("tickets", JSON.stringify(updatedTickets))
   }
 
   const getStatusColor = (status: string) => {
@@ -114,6 +140,26 @@ export default function AdminDashboard() {
   // If not an admin, don't render the dashboard
   if (!isAdmin) {
     return null
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen relative text-white flex items-center justify-center">
+        <div className="fixed inset-0 z-0">
+          <Image
+            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-0Is4KdsfvT3ztXg6dmbWOfHrVS64xu.png"
+            alt="Mediterranean Courtyard Background"
+            fill
+            className="object-cover"
+            priority
+          />
+          <div className="absolute inset-0 bg-black/50"></div>
+        </div>
+        <div className="relative z-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -204,13 +250,13 @@ export default function AdminDashboard() {
                           </div>
                           <div className="flex items-center gap-4 text-xs text-gray-400">
                             <span>#{ticket.id}</span>
-                            <span>{ticket.date}</span>
+                            <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
                             <span>{ticket.type}</span>
                           </div>
-                          {ticket.steamName && (
+                          {ticket.steam_name && (
                             <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
                               <User className="h-3 w-3" />
-                              <span>{ticket.steamName}</span>
+                              <span>{ticket.steam_name}</span>
                             </div>
                           )}
                         </div>
@@ -240,13 +286,13 @@ export default function AdminDashboard() {
                             </div>
                             <div className="flex items-center gap-4 text-xs text-gray-400">
                               <span>#{ticket.id}</span>
-                              <span>{ticket.date}</span>
+                              <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
                               <span>{ticket.type}</span>
                             </div>
-                            {ticket.steamName && (
+                            {ticket.steam_name && (
                               <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
                                 <User className="h-3 w-3" />
-                                <span>{ticket.steamName}</span>
+                                <span>{ticket.steam_name}</span>
                               </div>
                             )}
                           </div>
@@ -276,13 +322,13 @@ export default function AdminDashboard() {
                             </div>
                             <div className="flex items-center gap-4 text-xs text-gray-400">
                               <span>#{ticket.id}</span>
-                              <span>{ticket.date}</span>
+                              <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
                               <span>{ticket.type}</span>
                             </div>
-                            {ticket.steamName && (
+                            {ticket.steam_name && (
                               <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
                                 <User className="h-3 w-3" />
-                                <span>{ticket.steamName}</span>
+                                <span>{ticket.steam_name}</span>
                               </div>
                             )}
                           </div>
@@ -312,13 +358,13 @@ export default function AdminDashboard() {
                             </div>
                             <div className="flex items-center gap-4 text-xs text-gray-400">
                               <span>#{ticket.id}</span>
-                              <span>{ticket.date}</span>
+                              <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
                               <span>{ticket.type}</span>
                             </div>
-                            {ticket.steamName && (
+                            {ticket.steam_name && (
                               <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
                                 <User className="h-3 w-3" />
-                                <span>{ticket.steamName}</span>
+                                <span>{ticket.steam_name}</span>
                               </div>
                             )}
                           </div>
@@ -338,7 +384,7 @@ export default function AdminDashboard() {
                       <h2 className="text-2xl font-bold text-blue-400">{selectedTicket.title}</h2>
                       <div className="flex items-center gap-4 text-sm text-gray-400 mt-2">
                         <span>ID: #{selectedTicket.id}</span>
-                        <span>Fecha: {selectedTicket.date}</span>
+                        <span>Fecha: {new Date(selectedTicket.created_at).toLocaleDateString()}</span>
                         <span>Tipo: {selectedTicket.type}</span>
                         <Badge className={`${getStatusColor(selectedTicket.status)}`}>
                           {getStatusText(selectedTicket.status)}
@@ -346,15 +392,15 @@ export default function AdminDashboard() {
                       </div>
 
                       {/* User information */}
-                      {selectedTicket.steamName && (
+                      {selectedTicket.steam_name && (
                         <div className="flex items-center gap-2 mt-3 p-2 bg-gray-800/50 rounded-md">
                           <Avatar className="h-8 w-8">
-                            <AvatarFallback>{selectedTicket.steamName.charAt(0)}</AvatarFallback>
+                            <AvatarFallback>{selectedTicket.steam_name.charAt(0)}</AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="text-sm font-medium">{selectedTicket.steamName}</div>
-                            {selectedTicket.steamId && (
-                              <div className="text-xs text-gray-400">Steam ID: {selectedTicket.steamId}</div>
+                            <div className="text-sm font-medium">{selectedTicket.steam_name}</div>
+                            {selectedTicket.steam_id && (
+                              <div className="text-xs text-gray-400">Steam ID: {selectedTicket.steam_id}</div>
                             )}
                           </div>
                         </div>
@@ -409,7 +455,7 @@ export default function AdminDashboard() {
                   {/* Chat Section */}
                   <div className="border-t border-gray-700 pt-6">
                     <h3 className="text-lg font-medium mb-4">Conversación</h3>
-                    <AdminTicketChat ticketId={selectedTicket.id} userName={selectedTicket.steamName} />
+                    <AdminTicketChat ticketId={selectedTicket.id} userName={selectedTicket.steam_name} />
                   </div>
                 </div>
               ) : (
@@ -429,50 +475,108 @@ export default function AdminDashboard() {
   )
 }
 
-// Modificar la función AdminTicketChat para eliminar los mensajes pre-hechos
 function AdminTicketChat({ ticketId, userName }: { ticketId: number; userName?: string }) {
-  const [messages, setMessages] = useState<{ id: number; sender: string; text: string; time: string }[]>([])
+  const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  // Cargar mensajes y suscribirse a nuevos mensajes
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null
+
+    async function loadMessages() {
+      try {
+        setLoading(true)
+        const ticketMessages = await getMessagesByTicketId(ticketId)
+        setMessages(ticketMessages)
+
+        // Suscribirse a nuevos mensajes
+        unsubscribe = subscribeToMessages(ticketId, (newMessage) => {
+          setMessages((prevMessages) => [...prevMessages, newMessage])
+        })
+      } catch (error) {
+        console.error("Error loading messages:", error)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los mensajes. Por favor, intenta de nuevo.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadMessages()
+
+    // Limpiar suscripción al desmontar
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
+  }, [ticketId, toast])
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMessage.trim()) return
 
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-
-    setMessages([
-      ...messages,
-      {
-        id: messages.length + 1,
+    try {
+      // Enviar mensaje del trader
+      await createMessage({
+        ticket_id: ticketId,
         sender: "trader",
-        text: newMessage,
-        time,
-      },
-    ])
+        content: newMessage,
+      })
 
-    setNewMessage("")
+      // Limpiar campo de mensaje
+      setNewMessage("")
+    } catch (error) {
+      console.error("Error sending message:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo enviar el mensaje. Por favor, intenta de nuevo.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col h-96">
       <div className="flex-1 overflow-y-auto mb-4 space-y-3 p-3 bg-gray-900/50 rounded-lg">
-        {messages.map((message) => (
-          <div key={message.id} className={`flex ${message.sender === "trader" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                message.sender === "trader" ? "bg-blue-600 text-white" : "bg-gray-700 text-white"
-              }`}
-            >
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-medium">
-                  {message.sender === "trader" ? "Tú (Trader)" : userName || "Usuario"}
-                </span>
-                <span className="text-xs opacity-70 ml-2">{message.time}</span>
-              </div>
-              <p>{message.text}</p>
-            </div>
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-400">No hay mensajes en este ticket.</p>
           </div>
-        ))}
+        ) : (
+          messages.map((message) => (
+            <div key={message.id} className={`flex ${message.sender === "trader" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                  message.sender === "trader" ? "bg-blue-600 text-white" : "bg-gray-700 text-white"
+                }`}
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium">
+                    {message.sender === "trader" ? "Tú (Trader)" : userName || "Usuario"}
+                  </span>
+                  <span className="text-xs opacity-70 ml-2">
+                    {new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                <p>{message.content}</p>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <form onSubmit={handleSendMessage} className="flex gap-2">
