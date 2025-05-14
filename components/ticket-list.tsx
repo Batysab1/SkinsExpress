@@ -1,14 +1,13 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MessageCircle } from "lucide-react"
+import { getCurrentUser } from "@/lib/auth"
 
 type Ticket = {
   id: number
@@ -18,17 +17,32 @@ type Ticket = {
   type: string
   message?: string
   skin?: string
+  steamId?: string // Add steamId to link tickets to users
+  steamName?: string // Add steamName for display purposes
 }
 
 export default function TicketList() {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [showChat, setShowChat] = useState<number | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
 
   // Load tickets from localStorage on component mount
   useEffect(() => {
+    // Get current user
+    const user = getCurrentUser()
+    setCurrentUser(user)
+
     const storedTickets = localStorage.getItem("tickets")
     if (storedTickets) {
-      setTickets(JSON.parse(storedTickets))
+      const allTickets = JSON.parse(storedTickets)
+
+      // If user is logged in, filter tickets to show only their tickets
+      if (user && user.steamid) {
+        const userTickets = allTickets.filter((ticket: Ticket) => !ticket.steamId || ticket.steamId === user.steamid)
+        setTickets(userTickets)
+      } else {
+        setTickets(allTickets)
+      }
     } else {
       // Sample ticket data if no tickets in localStorage
       const sampleTickets: Ticket[] = [
@@ -107,6 +121,7 @@ export default function TicketList() {
                   <span>ID: #{ticket.id}</span>
                   <span>Fecha: {ticket.date}</span>
                   <span>Tipo: {ticket.type}</span>
+                  {ticket.steamName && <span>Usuario: {ticket.steamName}</span>}
                 </div>
               </div>
               <div className="flex items-center gap-2">

@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { isTrader } from "@/lib/auth"
-import { ArrowLeft, Search, MessageCircle, CheckCircle, Clock } from "lucide-react"
+import { ArrowLeft, Search, MessageCircle, CheckCircle, Clock, User } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 type Ticket = {
   id: number
@@ -21,6 +22,8 @@ type Ticket = {
   type: string
   message?: string
   skin?: string
+  steamId?: string
+  steamName?: string
 }
 
 export default function AdminDashboard() {
@@ -62,7 +65,8 @@ export default function AdminDashboard() {
       (ticket) =>
         ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         ticket.id.toString().includes(searchTerm) ||
-        ticket.type.toLowerCase().includes(searchTerm.toLowerCase()),
+        ticket.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (ticket.steamName && ticket.steamName.toLowerCase().includes(searchTerm.toLowerCase())),
     )
     setFilteredTickets(filtered)
   }, [searchTerm, tickets])
@@ -203,6 +207,12 @@ export default function AdminDashboard() {
                             <span>{ticket.date}</span>
                             <span>{ticket.type}</span>
                           </div>
+                          {ticket.steamName && (
+                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                              <User className="h-3 w-3" />
+                              <span>{ticket.steamName}</span>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -233,6 +243,12 @@ export default function AdminDashboard() {
                               <span>{ticket.date}</span>
                               <span>{ticket.type}</span>
                             </div>
+                            {ticket.steamName && (
+                              <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                                <User className="h-3 w-3" />
+                                <span>{ticket.steamName}</span>
+                              </div>
+                            )}
                           </div>
                         ))
                     )}
@@ -263,6 +279,12 @@ export default function AdminDashboard() {
                               <span>{ticket.date}</span>
                               <span>{ticket.type}</span>
                             </div>
+                            {ticket.steamName && (
+                              <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                                <User className="h-3 w-3" />
+                                <span>{ticket.steamName}</span>
+                              </div>
+                            )}
                           </div>
                         ))
                     )}
@@ -293,6 +315,12 @@ export default function AdminDashboard() {
                               <span>{ticket.date}</span>
                               <span>{ticket.type}</span>
                             </div>
+                            {ticket.steamName && (
+                              <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                                <User className="h-3 w-3" />
+                                <span>{ticket.steamName}</span>
+                              </div>
+                            )}
                           </div>
                         ))
                     )}
@@ -316,6 +344,21 @@ export default function AdminDashboard() {
                           {getStatusText(selectedTicket.status)}
                         </Badge>
                       </div>
+
+                      {/* User information */}
+                      {selectedTicket.steamName && (
+                        <div className="flex items-center gap-2 mt-3 p-2 bg-gray-800/50 rounded-md">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback>{selectedTicket.steamName.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="text-sm font-medium">{selectedTicket.steamName}</div>
+                            {selectedTicket.steamId && (
+                              <div className="text-xs text-gray-400">Steam ID: {selectedTicket.steamId}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex gap-2">
@@ -366,7 +409,7 @@ export default function AdminDashboard() {
                   {/* Chat Section */}
                   <div className="border-t border-gray-700 pt-6">
                     <h3 className="text-lg font-medium mb-4">Conversación</h3>
-                    <AdminTicketChat ticketId={selectedTicket.id} />
+                    <AdminTicketChat ticketId={selectedTicket.id} userName={selectedTicket.steamName} />
                   </div>
                 </div>
               ) : (
@@ -386,9 +429,14 @@ export default function AdminDashboard() {
   )
 }
 
-function AdminTicketChat({ ticketId }: { ticketId: number }) {
+function AdminTicketChat({ ticketId, userName }: { ticketId: number; userName?: string }) {
   const [messages, setMessages] = useState([
-    { id: 1, sender: "user", text: "Hola, estoy interesado en comprar una AWP Dragon Lore", time: "11:32" },
+    {
+      id: 1,
+      sender: "user",
+      text: "Hola, estoy interesado en comprar una AWP Dragon Lore",
+      time: "11:32",
+    },
     {
       id: 2,
       sender: "trader",
@@ -428,7 +476,9 @@ function AdminTicketChat({ ticketId }: { ticketId: number }) {
               }`}
             >
               <div className="flex justify-between items-center mb-1">
-                <span className="font-medium">{message.sender === "trader" ? "Tú (Trader)" : "Usuario"}</span>
+                <span className="font-medium">
+                  {message.sender === "trader" ? "Tú (Trader)" : userName || "Usuario"}
+                </span>
                 <span className="text-xs opacity-70 ml-2">{message.time}</span>
               </div>
               <p>{message.text}</p>

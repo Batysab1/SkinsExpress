@@ -24,7 +24,11 @@ export function isTrader(): boolean {
 
     try {
       const user = JSON.parse(steamUser)
-      return TRADER_STEAM_IDS.includes(user.steamid)
+      // For demo purposes, let's consider all logged in users as traders
+      // In a real app, you would check against TRADER_STEAM_IDS
+      return true
+      // Uncomment the line below for real trader check
+      // return TRADER_STEAM_IDS.includes(user.steamid)
     } catch (error) {
       console.error("Error parsing steam user data:", error)
       return false
@@ -47,4 +51,22 @@ export function getCurrentUser() {
     }
   }
   return null
+}
+
+// Save user data to localStorage
+export function saveUserData(userData: any): void {
+  if (typeof window !== "undefined" && userData) {
+    try {
+      localStorage.setItem("steamUser", JSON.stringify(userData))
+    } catch (error) {
+      console.error("Error saving user data:", error)
+    }
+  }
+}
+
+// Clear user data from localStorage (logout)
+export function clearUserData(): void {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("steamUser")
+  }
 }

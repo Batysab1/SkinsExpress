@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -12,29 +11,44 @@ import SkinSlider from "@/components/skin-slider"
 import SteamLoginButton from "@/components/steam-login-button"
 import AdminNav from "@/components/admin-nav"
 import FaqSection from "@/components/faq-section"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { isAuthenticated } from "@/lib/auth"
+import { isAuthenticated, saveUserData } from "@/lib/auth"
 import { Toaster } from "@/components/ui/toaster"
 
 export default function Home() {
   const { toast } = useToast()
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     // Check for login status in URL parameters
     const urlParams = new URLSearchParams(window.location.search)
     const loginStatus = urlParams.get("login")
+    const userData = urlParams.get("userData")
 
-    if (loginStatus === "success") {
-      toast({
-        title: "Inicio de sesión exitoso",
-        description: "Has iniciado sesión con Steam correctamente.",
-        variant: "default",
-      })
+    if (loginStatus === "success" && userData) {
+      try {
+        // Parse and save user data
+        const parsedUserData = JSON.parse(userData)
+        saveUserData(parsedUserData)
 
-      // Remove the query parameter from URL
-      window.history.replaceState({}, document.title, window.location.pathname)
+        toast({
+          title: "Inicio de sesión exitoso",
+          description: `Bienvenido, ${parsedUserData.personaname}!`,
+          variant: "default",
+        })
+
+        // Remove the query parameter from URL
+        window.history.replaceState({}, document.title, window.location.pathname)
+      } catch (error) {
+        console.error("Error processing user data:", error)
+        toast({
+          title: "Error de procesamiento",
+          description: "Hubo un problema al procesar tus datos de usuario.",
+          variant: "destructive",
+        })
+      }
     } else if (loginStatus === "failed" || loginStatus === "error") {
       toast({
         title: "Error de inicio de sesión",
@@ -54,6 +68,8 @@ export default function Home() {
       // Remove the query parameter from URL
       window.history.replaceState({}, document.title, window.location.pathname)
     }
+
+    setIsLoading(false)
   }, [toast])
 
   const handleTicketClick = (e: React.MouseEvent) => {
@@ -70,6 +86,14 @@ export default function Home() {
         variant: "destructive",
       })
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="animate-pulse text-blue-400 text-2xl">Cargando...</div>
+      </div>
+    )
   }
 
   return (

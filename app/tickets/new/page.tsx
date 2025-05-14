@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -11,17 +10,24 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
-import { isAuthenticated } from "@/lib/auth"
+import { isAuthenticated, getCurrentUser } from "@/lib/auth"
 
 export default function NewTicketPage() {
   const [ticketType, setTicketType] = useState("purchase")
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const router = useRouter()
 
   useEffect(() => {
     // Check if user is logged in
     const authenticated = isAuthenticated()
     setIsLoggedIn(authenticated)
+
+    // Get current user data
+    if (authenticated) {
+      const user = getCurrentUser()
+      setCurrentUser(user)
+    }
 
     // If not logged in, redirect to home page
     if (!authenticated) {
@@ -38,7 +44,7 @@ export default function NewTicketPage() {
     const message = formData.get("message") as string
     const skin = (formData.get("skin") as string) || ""
 
-    // Create a new ticket object
+    // Create a new ticket object with user data
     const newTicket = {
       id: Date.now(),
       title,
@@ -54,6 +60,9 @@ export default function NewTicketPage() {
               : "Soporte",
       message,
       skin,
+      // Add user data to link the ticket to the user
+      steamId: currentUser?.steamid || "",
+      steamName: currentUser?.personaname || "",
     }
 
     // Get existing tickets from localStorage or initialize empty array
@@ -130,6 +139,11 @@ export default function NewTicketPage() {
               </Link>
               <h1 className="text-2xl font-bold text-blue-400">SkinsExpress</h1>
             </div>
+            {currentUser && (
+              <div className="text-sm text-gray-300">
+                Creando ticket como: <span className="font-medium text-blue-400">{currentUser.personaname}</span>
+              </div>
+            )}
           </div>
         </header>
 
