@@ -38,7 +38,7 @@ export default function SteamLoginButton() {
       return window.location.origin
     }
     // Fallback for server-side rendering
-    return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+    return process.env.NEXT_PUBLIC_SITE_URL || "https://skins-express-ten.vercel.app/"
   }
 
   // Steam OpenID authentication URL
