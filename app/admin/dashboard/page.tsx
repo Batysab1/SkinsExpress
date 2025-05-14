@@ -429,21 +429,9 @@ export default function AdminDashboard() {
   )
 }
 
+// Modificar la función AdminTicketChat para eliminar los mensajes pre-hechos
 function AdminTicketChat({ ticketId, userName }: { ticketId: number; userName?: string }) {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: "user",
-      text: "Hola, estoy interesado en comprar una AWP Dragon Lore",
-      time: "11:32",
-    },
-    {
-      id: 2,
-      sender: "trader",
-      text: "Hola, gracias por contactarnos. Tenemos disponibilidad. ¿Qué desgaste estás buscando?",
-      time: "11:33",
-    },
-  ])
+  const [messages, setMessages] = useState<{ id: number; sender: string; text: string; time: string }[]>([])
   const [newMessage, setNewMessage] = useState("")
 
   const handleSendMessage = (e: React.FormEvent) => {

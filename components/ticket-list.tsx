@@ -21,6 +21,7 @@ type Ticket = {
   steamName?: string // Add steamName for display purposes
 }
 
+// Modificar la función TicketList para eliminar los tickets de ejemplo
 export default function TicketList() {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [showChat, setShowChat] = useState<number | null>(null)
@@ -44,32 +45,9 @@ export default function TicketList() {
         setTickets(allTickets)
       }
     } else {
-      // Sample ticket data if no tickets in localStorage
-      const sampleTickets: Ticket[] = [
-        {
-          id: 1,
-          title: "Compra de AWP Dragon Lore",
-          date: "12/05/2025",
-          status: "in-progress",
-          type: "Compra",
-        },
-        {
-          id: 2,
-          title: "Venta de Karambit Doppler",
-          date: "10/05/2025",
-          status: "pending",
-          type: "Venta",
-        },
-        {
-          id: 3,
-          title: "Problema con pago",
-          date: "05/05/2025",
-          status: "completed",
-          type: "Soporte",
-        },
-      ]
-      setTickets(sampleTickets)
-      localStorage.setItem("tickets", JSON.stringify(sampleTickets))
+      // No sample tickets, just initialize with empty array
+      setTickets([])
+      localStorage.setItem("tickets", JSON.stringify([]))
     }
   }, [])
 
@@ -147,12 +125,9 @@ export default function TicketList() {
   )
 }
 
+// Modificar la función LiveChat para eliminar los mensajes pre-hechos
 function LiveChat({ ticketId }: { ticketId: number }) {
-  const [messages, setMessages] = useState([
-    { id: 1, sender: "trader", text: "Hola, ¿en qué puedo ayudarte?", time: "11:30" },
-    { id: 2, sender: "user", text: "Hola, estoy interesado en comprar una AWP Dragon Lore", time: "11:32" },
-    { id: 3, sender: "trader", text: "Perfecto, tenemos disponibilidad. ¿Qué desgaste estás buscando?", time: "11:33" },
-  ])
+  const [messages, setMessages] = useState<{ id: number; sender: string; text: string; time: string }[]>([])
   const [newMessage, setNewMessage] = useState("")
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -173,7 +148,7 @@ function LiveChat({ ticketId }: { ticketId: number }) {
 
     setNewMessage("")
 
-    // Simulate trader response
+    // Simulate trader response - solo un mensaje automático
     setTimeout(() => {
       const traderResponse = {
         id: messages.length + 2,
