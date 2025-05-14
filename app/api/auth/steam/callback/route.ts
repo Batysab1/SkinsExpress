@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-// Steam API key
+// Steam API key - in production, this should be an environment variable
 const STEAM_API_KEY = "DC86BB41E1A081AF3DB72F6A20762E31"
 
 export async function GET(request: NextRequest) {
@@ -23,9 +23,15 @@ export async function GET(request: NextRequest) {
         const player = userData.response.players[0]
 
         // Create a redirect URL with the user data
-        const redirectUrl = new URL("/?login=success", request.url)
+        // Use absolute URL to ensure proper redirection
+        const baseUrl = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : request.headers.get("origin") || "http://localhost:3000"
+
+        const redirectUrl = new URL("/", baseUrl)
 
         // Add user data to the URL as a parameter
+        redirectUrl.searchParams.set("login", "success")
         redirectUrl.searchParams.set("userData", JSON.stringify(player))
 
         return NextResponse.redirect(redirectUrl)
@@ -33,9 +39,18 @@ export async function GET(request: NextRequest) {
     }
 
     // If validation fails or no Steam ID is found
-    return NextResponse.redirect(new URL("/?login=failed", request.url))
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : request.headers.get("origin") || "http://localhost:3000"
+
+    return NextResponse.redirect(new URL("/?login=failed", baseUrl))
   } catch (error) {
     console.error("Steam authentication error:", error)
-    return NextResponse.redirect(new URL("/?login=error", request.url))
+
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : request.headers.get("origin") || "http://localhost:3000"
+
+    return NextResponse.redirect(new URL("/?login=error", baseUrl))
   }
 }

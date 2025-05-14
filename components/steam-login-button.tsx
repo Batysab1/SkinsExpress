@@ -32,9 +32,18 @@ export default function SteamLoginButton() {
     }
   }, [])
 
+  // Get the current origin for the return URL
+  const getOrigin = () => {
+    if (typeof window !== "undefined") {
+      return window.location.origin
+    }
+    // Fallback for server-side rendering
+    return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+  }
+
   // Steam OpenID authentication URL
   const steamAuthUrl = "https://steamcommunity.com/openid/login"
-  const realm = typeof window !== "undefined" ? window.location.origin : ""
+  const realm = getOrigin()
   const returnTo = `${realm}/api/auth/steam/callback`
 
   // Construct the Steam login URL with the API key
