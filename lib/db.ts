@@ -80,6 +80,29 @@ export async function updateTicketStatus(id: number, status: "pending" | "in-pro
   return data?.[0] as Ticket
 }
 
+// New function to delete a ticket
+export async function deleteTicket(id: number) {
+  const supabase = getSupabaseClient()
+
+  // First delete all messages associated with the ticket (due to foreign key constraints)
+  const { error: messagesError } = await supabase.from("messages").delete().eq("ticket_id", id)
+
+  if (messagesError) {
+    console.error("Error deleting ticket messages:", messagesError)
+    throw messagesError
+  }
+
+  // Then delete the ticket
+  const { error: ticketError } = await supabase.from("tickets").delete().eq("id", id)
+
+  if (ticketError) {
+    console.error("Error deleting ticket:", ticketError)
+    throw ticketError
+  }
+
+  return { success: true }
+}
+
 // Funciones para mensajes
 export async function createMessage(message: Omit<Message, "id" | "created_at">) {
   const supabase = getSupabaseClient()

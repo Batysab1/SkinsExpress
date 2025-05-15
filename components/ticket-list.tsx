@@ -6,17 +6,29 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MessageCircle } from "lucide-react"
+import { MessageCircle, Trash2 } from "lucide-react"
 import { getCurrentUser } from "@/lib/auth"
 import {
   getTickets,
   getMessagesByTicketId,
   createMessage,
   subscribeToMessages,
+  deleteTicket,
   type Ticket,
   type Message,
 } from "@/lib/db"
 import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export default function TicketList() {
   const [tickets, setTickets] = useState<Ticket[]>([])
@@ -80,6 +92,26 @@ export default function TicketList() {
     }
   }
 
+  const handleDeleteTicket = async (ticketId: number) => {
+    try {
+      await deleteTicket(ticketId)
+      // Remove the ticket from the state
+      setTickets(tickets.filter((ticket) => ticket.id !== ticketId))
+      toast({
+        title: "Ticket eliminado",
+        description: "El ticket ha sido eliminado correctamente.",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Error deleting ticket:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el ticket. Por favor, intenta de nuevo.",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -121,6 +153,33 @@ export default function TicketList() {
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Chat
                 </Button>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="icon">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="bg-gray-900 border-gray-800">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="text-white">¿Eliminar ticket?</AlertDialogTitle>
+                      <AlertDialogDescription className="text-gray-400">
+                        Esta acción no se puede deshacer. Se eliminará permanentemente el ticket y todos sus mensajes.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">
+                        Cancelar
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                        onClick={() => handleDeleteTicket(ticket.id)}
+                      >
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
 

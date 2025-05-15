@@ -25,6 +25,10 @@ export function isTrader(): boolean {
     try {
       const user = JSON.parse(steamUser)
       // Check if the user's Steam ID is in the list of authorized traders
+      // For development purposes, if no TRADER_STEAM_IDS are defined, return false
+      if (TRADER_STEAM_IDS.length === 0) {
+        return false // Changed from true to false to fix the security issue
+      }
       return TRADER_STEAM_IDS.includes(user.steamid)
     } catch (error) {
       console.error("Error parsing steam user data:", error)

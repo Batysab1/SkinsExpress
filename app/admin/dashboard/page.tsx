@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { isTrader } from "@/lib/auth"
-import { ArrowLeft, Search, MessageCircle, CheckCircle, Clock, User } from "lucide-react"
+import { ArrowLeft, Search, MessageCircle, CheckCircle, Clock, User, Trash2 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   getTickets,
@@ -19,10 +19,22 @@ import {
   getMessagesByTicketId,
   createMessage,
   subscribeToMessages,
+  deleteTicket,
   type Ticket,
   type Message,
 } from "@/lib/db"
 import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export default function AdminDashboard() {
   const [tickets, setTickets] = useState<Ticket[]>([])
@@ -106,6 +118,35 @@ export default function AdminDashboard() {
       toast({
         title: "Error",
         description: "No se pudo actualizar el estado del ticket. Por favor, intenta de nuevo.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteTicket = async (ticketId: number) => {
+    try {
+      await deleteTicket(ticketId)
+
+      // Update local state
+      const updatedTickets = tickets.filter((ticket) => ticket.id !== ticketId)
+      setTickets(updatedTickets)
+      setFilteredTickets(filteredTickets.filter((ticket) => ticket.id !== ticketId))
+
+      // If the deleted ticket was selected, clear the selection
+      if (selectedTicket && selectedTicket.id === ticketId) {
+        setSelectedTicket(null)
+      }
+
+      toast({
+        title: "Ticket eliminado",
+        description: "El ticket ha sido eliminado correctamente.",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Error deleting ticket:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el ticket. Por favor, intenta de nuevo.",
         variant: "destructive",
       })
     }
@@ -465,6 +506,35 @@ export default function AdminDashboard() {
                         <CheckCircle className="h-4 w-4 mr-1" />
                         Completado
                       </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="destructive">
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Eliminar
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-gray-900 border-gray-800">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-white">¿Eliminar ticket?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-gray-400">
+                              Esta acción no se puede deshacer. Se eliminará permanentemente el ticket y todos sus
+                              mensajes.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">
+                              Cancelar
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-red-600 hover:bg-red-700 text-white"
+                              onClick={() => handleDeleteTicket(selectedTicket.id)}
+                            >
+                              Eliminar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
 

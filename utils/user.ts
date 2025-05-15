@@ -3,8 +3,9 @@ import { isAuthenticated, getCurrentUser } from "@/lib/auth"
 // List of Steam IDs of traders (administrators)
 // This should be populated with actual Steam IDs of administrators
 const TRADER_IDS = [
-  Add Steam IDs of traders here
-  "76561199095760446"
+  // Add Steam IDs of traders here
+  "76561198012345678",
+  "76561198087654321",
 ]
 
 /**
@@ -21,9 +22,9 @@ export function isTrader(): boolean {
     return false
   }
 
-  // If the list is empty, consider all authenticated users as traders (only for development)
+  // If the list is empty, consider no users as traders (fixed security issue)
   if (TRADER_IDS.length === 0) {
-    return true
+    return false
   }
 
   return TRADER_IDS.includes(userData.steamid)
