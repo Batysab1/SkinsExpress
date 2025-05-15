@@ -1,30 +1,108 @@
 import { createClient } from "@supabase/supabase-js"
 
-// Crear un singleton para el cliente de Supabase en el lado del cliente
-let supabaseClient: ReturnType<typeof createClient> | null = null
+// Crear un cliente de Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-export const getSupabaseClient = () => {
-  if (supabaseClient) return supabaseClient
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Supabase URL and Anon Key must be defined")
+// Tipos para la base de datos
+export type Database = {
+  public: {
+    Tables: {
+      users: {
+        Row: {
+          id: string
+          steam_id: string
+          username: string
+          avatar_url: string | null
+          is_admin: boolean
+          created_at: string
+          last_login: string
+        }
+        Insert: {
+          id?: string
+          steam_id: string
+          username: string
+          avatar_url?: string | null
+          is_admin?: boolean
+          created_at?: string
+          last_login?: string
+        }
+        Update: {
+          id?: string
+          steam_id?: string
+          username?: string
+          avatar_url?: string | null
+          is_admin?: boolean
+          created_at?: string
+          last_login?: string
+        }
+      }
+      tickets: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          type: string
+          status: string
+          message: string
+          skin: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          type: string
+          status?: string
+          message: string
+          skin?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          type?: string
+          status?: string
+          message?: string
+          skin?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      ticket_messages: {
+        Row: {
+          id: string
+          ticket_id: string
+          user_id: string
+          message: string
+          created_at: string
+          is_from_admin: boolean
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          user_id: string
+          message: string
+          created_at?: string
+          is_from_admin?: boolean
+        }
+        Update: {
+          id?: string
+          ticket_id?: string
+          user_id?: string
+          message?: string
+          created_at?: string
+          is_from_admin?: boolean
+        }
+      }
+    }
   }
-
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
-  return supabaseClient
 }
 
-// Cliente de Supabase para el lado del servidor
-export const createServerSupabaseClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error("Supabase URL and Service Role Key must be defined")
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey)
-}
+export type Ticket = Database["public"]["Tables"]["tickets"]["Row"]
+export type Message = Database["public"]["Tables"]["ticket_messages"]["Row"]

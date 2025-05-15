@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -11,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useRouter } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { isAuthenticated, getCurrentUser } from "@/lib/auth"
-import { createTicket } from "@/lib/db"
+import { createTicket } from "@/lib/tickets"
 import { useToast } from "@/hooks/use-toast"
 
 export default function NewTicketPage() {
@@ -23,17 +24,17 @@ export default function NewTicketPage() {
   const { toast } = useToast()
 
   useEffect(() => {
-    // Check if user is logged in
+    // Verificar si el usuario está autenticado
     const authenticated = isAuthenticated()
     setIsLoggedIn(authenticated)
 
-    // Get current user data
+    // Obtener datos del usuario actual
     if (authenticated) {
       const user = getCurrentUser()
       setCurrentUser(user)
     }
 
-    // If not logged in, redirect to home page
+    // Si no está autenticado, redirigir a la página de inicio
     if (!authenticated) {
       router.push("/?login=required")
     }
@@ -54,44 +55,31 @@ export default function NewTicketPage() {
     setIsSubmitting(true)
 
     try {
-      // Get form data
+      // Obtener datos del formulario
       const formData = new FormData(e.target as HTMLFormElement)
       const title = formData.get("title") as string
       const message = formData.get("message") as string
-      const skin = (formData.get("skin") as string) || ""
+      const skin = (formData.get("skin") as string) || undefined
 
-      // Create ticket in Supabase
-      await createTicket({
-        title,
-        status: "pending",
-        type:
-          ticketType === "purchase"
-            ? "Compra"
-            : ticketType === "sale"
-              ? "Venta"
-              : ticketType === "trade"
-                ? "Intercambio"
-                : "Soporte",
-        message,
-        skin,
-        steam_id: currentUser.steamid || "",
-        steam_name: currentUser.personaname || "",
-      })
+      // Crear ticket en la base de datos
+      const ticket = await createTicket(currentUser.id, title, ticketType as any, message, skin)
 
-      // Show success message
-      toast({
-        title: "Ticket creado",
-        description: "Tu ticket ha sido creado con éxito. Un miembro del staff se pondrá en contacto contigo pronto.",
-        variant: "default",
-      })
+      if (ticket) {
+        toast({
+          title: "Ticket creado",
+          description: "Tu ticket ha sido creado con éxito",
+        })
 
-      // Redirect to tickets page
-      router.push("/tickets")
+        // Redirigir a la página de tickets
+        router.push("/tickets")
+      } else {
+        throw new Error("No se pudo crear el ticket")
+      }
     } catch (error) {
       console.error("Error creating ticket:", error)
       toast({
         title: "Error",
-        description: "No se pudo crear el ticket. Por favor, intenta de nuevo.",
+        description: "No se pudo crear el ticket. Inténtalo de nuevo.",
         variant: "destructive",
       })
     } finally {
@@ -99,7 +87,7 @@ export default function NewTicketPage() {
     }
   }
 
-  // If not logged in, don't render the form
+  // Si no está autenticado, no renderizar el formulario
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen relative text-white">
@@ -159,7 +147,7 @@ export default function NewTicketPage() {
             </div>
             {currentUser && (
               <div className="text-sm text-gray-300">
-                Creando ticket como: <span className="font-medium text-blue-400">{currentUser.personaname}</span>
+                Creando ticket como: <span className="font-medium text-blue-400">{currentUser.username}</span>
               </div>
             )}
           </div>
@@ -238,14 +226,7 @@ export default function NewTicketPage() {
                     </Button>
                   </Link>
                   <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></div>
-                        Creando...
-                      </>
-                    ) : (
-                      "Crear Ticket"
-                    )}
+                    {isSubmitting ? "Creando..." : "Crear Ticket"}
                   </Button>
                 </div>
               </form>

@@ -1,72 +1,171 @@
-// List of Steam IDs that have trader/admin privileges
-// In a production environment, this would be stored in a database
-export const TRADER_STEAM_IDS = [
-  "76561198012345678", // Example Steam ID 1
-  "76561198087654321", // Example Steam ID 2
-  // Add more trader Steam IDs as needed
-]
+import { supabase } from "./supabase"
 
-// Check if a user is authenticated
-export function isAuthenticated(): boolean {
-  // In a client component, check if the user has a valid session
-  if (typeof window !== "undefined") {
-    const steamUser = localStorage.getItem("steamUser")
-    return !!steamUser
+// Guardar datos del usuario de Steam en Supabase
+export async function saveUserData(steamUser: any): Promise<any> {
+  if (!steamUser || !steamUser.steamid) {
+    console.error("No se proporcionaron datos de usuario válidos")
+    return null
   }
-  return false
-}
 
-// Check if a user is a trader/admin
-export function isTrader(): boolean {
-  if (typeof window !== "undefined") {
-    const steamUser = localStorage.getItem("steamUser")
-    if (!steamUser) return false
+  try {
+    // Verificar si el usuario ya existe
+    const { data: existingUser, error: fetchError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("steam_id", steamUser.steamid)
+      .single()
 
-    try {
-      const user = JSON.parse(steamUser)
-      // For demo purposes, let's consider all logged in users as traders
-      // In a real app, you would check against TRADER_STEAM_IDS
-      return true
-      // Uncomment the line below for real trader check
-      // return TRADER_STEAM_IDS.includes(user.steamid)
-    } catch (error) {
-      console.error("Error parsing steam user data:", error)
-      return false
-    }
-  }
-  return false
-}
-
-// Get the current user's data
-export function getCurrentUser() {
-  if (typeof window !== "undefined") {
-    const steamUser = localStorage.getItem("steamUser")
-    if (!steamUser) return null
-
-    try {
-      return JSON.parse(steamUser)
-    } catch (error) {
-      console.error("Error parsing steam user data:", error)
+    if (fetchError && fetchError.code !== "PGRST116") {
+      console.error("Error al buscar usuario:", fetchError)
       return null
     }
-  }
-  return null
-}
 
-// Save user data to localStorage
-export function saveUserData(userData: any): void {
-  if (typeof window !== "undefined" && userData) {
-    try {
-      localStorage.setItem("steamUser", JSON.stringify(userData))
-    } catch (error) {
-      console.error("Error saving user data:", error)
+    // Crear objeto con datos del usuario
+    const userData = {
+      steam_id: steamUser.steamid,
+      username: steamUser.personaname,
+      avatar_url: steamUser.avatarfull || steamUser.avatar,
+      last_login: new Date().toISOString(),
     }
+
+    if (existingUser) {
+      // Actualizar usuario existente
+      const { data: updatedUser, error: updateError } = await supabase
+        .from("users")
+        .update(userData)
+        .eq("steam_id", steamUser.steamid)
+        .select()
+        .single()
+
+      if (updateError) {
+        console.error("Error al actualizar usuario:", updateError)
+        return null
+      }
+
+      // Iniciar sesión con el usuario existente
+      await supabase.auth
+        .signInWithPassword({
+          email: `${steamUser.steamid}@steam.user`,
+          password: steamUser.steamid,
+        })
+        .catch(async (err) => {
+          // Si falla el inicio de sesión, intentar crear el usuario
+          if (err.message.includes("Invalid login credentials")) {
+            await supabase.auth.signUp({
+              email: `${steamUser.steamid}@steam.user`,
+              password: steamUser.steamid,
+              options: {
+                data: {
+                  steam_id: steamUser.steamid,
+                  username: steamUser.personaname,
+                },
+              },
+            })
+          }
+        })
+
+      return updatedUser
+    } else {
+      // Crear nuevo usuario
+      const { data: newUser, error: insertError } = await supabase
+        .from("users")
+        .insert({
+          ...userData,
+          is_admin: false, // Por defecto, los nuevos usuarios no son administradores
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error("Error al crear usuario:", insertError)
+        return null
+      }
+
+      // Crear usuario en auth
+      await supabase.auth.signUp({
+        email: `${steamUser.steamid}@steam.user`,
+        password: steamUser.steamid,
+        options: {
+          data: {
+            steam_id: steamUser.steamid,
+            username: steamUser.personaname,
+          },
+        },
+      })
+
+      return newUser
+    }
+  } catch (error) {
+    console.error("Error al guardar datos de usuario:", error)
+    return null
   }
 }
 
-// Clear user data from localStorage (logout)
-export function clearUserData(): void {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("steamUser")
+// Verificar si el usuario es administrador
+export async function isAdmin(): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return false
+    }
+
+    const { data } = await supabase.from("users").select("is_admin").eq("id", user.id).single()
+
+    return data?.is_admin || false
+  } catch (error) {
+    console.error("Error al verificar si el usuario es administrador:", error)
+    return false
+  }
+}
+
+// Alias para isAdmin para mantener compatibilidad
+export async function isTrader(): Promise<boolean> {
+  return isAdmin()
+}
+
+// Obtener el usuario actual
+export async function getCurrentUser() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return null
+    }
+
+    const { data } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+    return data
+  } catch (error) {
+    console.error("Error al obtener usuario actual:", error)
+    return null
+  }
+}
+
+// Cerrar sesión
+export async function logout() {
+  try {
+    await supabase.auth.signOut()
+    return true
+  } catch (error) {
+    console.error("Error al cerrar sesión:", error)
+    return false
+  }
+}
+
+// Verificar si el usuario está autenticado
+export async function isAuthenticated(): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    return !!user
+  } catch (error) {
+    console.error("Error al verificar autenticación:", error)
+    return false
   }
 }
