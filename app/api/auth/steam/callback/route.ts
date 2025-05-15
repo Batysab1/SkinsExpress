@@ -1,24 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { saveUserData } from "@/lib/auth"
 
-// Steam API key - en producción, esto debería ser una variable de entorno
-const STEAM_API_KEY = process.env.STEAM_API_KEY || ""
+// Steam API key - in production, this should be an environment variable
+const STEAM_API_KEY = process.env.STEAM_API_KEY || "A6EA33F1E638BAB09E2BF484E9B767FA"
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const params = Object.fromEntries(searchParams.entries())
 
-    // Validar la respuesta de OpenID
+    // Validate the OpenID response
     if (params["openid.mode"] === "id_res" && params["openid.claimed_id"]) {
-      // Extraer el Steam ID del claimed_id
+      // Extract the Steam ID from the claimed_id
       const steamId = params["openid.claimed_id"].split("/").pop()
 
       if (steamId) {
         console.log("Steam ID:", steamId)
         console.log("Using API Key:", STEAM_API_KEY)
 
-        // Obtener datos de usuario de la API de Steam
+        // Fetch user data from Steam API
         const userDataResponse = await fetch(
           `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${steamId}`,
         )
@@ -38,24 +37,15 @@ export async function GET(request: NextRequest) {
         const player = userData.response.players[0]
         console.log("Player data:", player)
 
-        // Guardar datos de usuario en Supabase
-        const savedUser = await saveUserData(player)
-
-        if (!savedUser) {
-          console.error("Error saving user data to Supabase")
-        } else {
-          console.log("User saved successfully:", savedUser)
-        }
-
-        // Determinar la URL base para la redirección
+        // Determine the base URL for redirection
         let baseUrl = process.env.NEXT_PUBLIC_SITE_URL
 
         if (!baseUrl) {
-          // Intentar determinar desde la solicitud
+          // Try to determine from request
           baseUrl = request.headers.get("origin") || request.headers.get("referer")
 
           if (!baseUrl) {
-            // Último recurso
+            // Last resort fallback
             baseUrl = "http://localhost:3000"
           } else if (baseUrl.endsWith("/")) {
             baseUrl = baseUrl.slice(0, -1)
@@ -64,21 +54,21 @@ export async function GET(request: NextRequest) {
 
         console.log("Redirecting to base URL:", baseUrl)
 
-        // Crear una URL de redirección con los datos del usuario
+        // Create a redirect URL with the user data
         const redirectUrl = new URL("/", baseUrl)
 
-        // Añadir datos de usuario a la URL como parámetro
+        // Add user data to the URL as a parameter
         redirectUrl.searchParams.set("login", "success")
-        redirectUrl.searchParams.set("userData", JSON.stringify(savedUser || player))
+        redirectUrl.searchParams.set("userData", JSON.stringify(player))
 
         return NextResponse.redirect(redirectUrl)
       }
     }
 
-    // Si la validación falla o no se encuentra el Steam ID
+    // If validation fails or no Steam ID is found
     console.error("Steam authentication failed:", params)
 
-    // Determinar URL base para redirección de error
+    // Determine base URL for error redirection
     let baseUrl = process.env.NEXT_PUBLIC_SITE_URL
 
     if (!baseUrl) {
@@ -95,7 +85,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Steam authentication error:", error)
 
-    // Determinar URL base para redirección de error
+    // Determine base URL for error redirection
     let baseUrl = process.env.NEXT_PUBLIC_SITE_URL
 
     if (!baseUrl) {

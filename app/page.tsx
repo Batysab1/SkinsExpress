@@ -15,6 +15,7 @@ import { useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { isAuthenticated, saveUserData } from "@/lib/auth"
 import { Toaster } from "@/components/ui/toaster"
+import { isTrader } from "@/utils/user"
 
 export default function Home() {
   const { toast } = useToast()
@@ -83,6 +84,29 @@ export default function Home() {
       toast({
         title: "Inicio de sesión requerido",
         description: "Debes iniciar sesión con Steam para poder abrir un ticket.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleInitDb = async () => {
+    try {
+      const response = await fetch("/api/init-db")
+      const data = await response.json()
+      if (data.success) {
+        toast({
+          title: "Base de datos inicializada",
+          description: "Las tablas han sido creadas correctamente.",
+          variant: "default",
+        })
+      } else {
+        throw new Error(data.error || "Error desconocido")
+      }
+    } catch (error) {
+      console.error("Error initializing database:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo inicializar la base de datos. Por favor, intenta de nuevo.",
         variant: "destructive",
       })
     }
@@ -243,6 +267,15 @@ export default function Home() {
       {/* Cookie Consent */}
       <CookieConsent />
       <Toaster />
+
+      {/* Admin DB Init Button (only visible for traders) */}
+      {isTrader() && (
+        <div className="fixed bottom-4 right-4 z-20">
+          <Button onClick={handleInitDb} className="bg-purple-600 hover:bg-purple-700 text-white">
+            Inicializar BD
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
