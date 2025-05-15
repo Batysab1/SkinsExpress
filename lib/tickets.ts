@@ -5,34 +5,25 @@ export type Ticket = Database["public"]["Tables"]["tickets"]["Row"]
 export type TicketMessage = Database["public"]["Tables"]["ticket_messages"]["Row"]
 
 // Crear un nuevo ticket
-export async function createTicket(ticketData: {
-  user_id: string
-  title: string
-  type: string
-  message: string
-  skin?: string
-}) {
-  try {
-    const { data, error } = await supabase
-      .from("tickets")
-      .insert({
-        ...ticketData,
-        status: "open",
-      })
-      .select()
-      .single()
+export async function createTicket(ticket: Omit<Ticket, "id" | "created_at" | "user_id">) {
+  const supabase = getSupabaseClient();
 
-    if (error) {
-      console.error("Error al crear ticket:", error)
-      return null
-    }
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
 
-    return data
-  } catch (error) {
-    console.error("Error al crear ticket:", error)
-    return null
+  const { data, error } = await supabase
+    .from("tickets")
+    .insert([{ ...ticket, user_id: user.id }])
+    .select();
+
+  if (error) {
+    console.error("Error creating ticket:", error);
+    throw error;
   }
+
+  return data?.[0] as Ticket;
 }
+
 
 // Obtener todos los tickets (para administradores)
 export async function getAllTickets() {
