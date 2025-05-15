@@ -3,8 +3,8 @@ import { isAuthenticated, getCurrentUser } from "@/lib/auth"
 // List of Steam IDs of traders (administrators)
 // This should be populated with actual Steam IDs of administrators
 const TRADER_IDS = [
-  // Add Steam IDs of traders here
-  // For example: "76561198012345678"
+  Add Steam IDs of traders here
+  "76561199095760446"
 ]
 
 /**
